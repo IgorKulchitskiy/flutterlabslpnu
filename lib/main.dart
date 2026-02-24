@@ -31,7 +31,7 @@ class _MyHomePageState extends State<MyHomePage> {
   int _counter = 0;
   final TextEditingController _controller = TextEditingController();
   String _message = '';
-
+  
   void _handleInput(String value) {
     setState(() {
       if (value == 'Avada Kedavra') {
@@ -50,7 +50,13 @@ class _MyHomePageState extends State<MyHomePage> {
 
     _controller.clear();
   }
+  void _increment() {
+    setState(() {
+      _counter+= 1;
+      _message = '➕ Лічильник збільшено на 1';
+    });
 
+  }
   @override
   void dispose() {
     _controller.dispose();
@@ -72,6 +78,16 @@ class _MyHomePageState extends State<MyHomePage> {
               'Лічильник: $_counter',
               style: Theme.of(context).textTheme.headlineMedium,
               textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16,),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: _increment,
+                  child: const Text('Збільшити на 1'),
+                ),
+              ],
             ),
             const SizedBox(height: 20),
             TextField(

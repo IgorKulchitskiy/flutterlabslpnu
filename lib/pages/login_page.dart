@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:project/pages/alarm_page.dart';
+import 'package:flutterlabslpnu/pages/alarm_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

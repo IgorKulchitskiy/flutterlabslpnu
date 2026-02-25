@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
-import '../pages/edit_alarm_page.dart';
+
+import 'package:flutterlabslpnu/pages/edit_alarm_page.dart';
 
 class AppCard extends StatelessWidget {
   final String title;
 
-  const AppCard({super.key, required this.title});
+  const AppCard({
+    required this.title,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {

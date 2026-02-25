@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
-import 'settings_page.dart';
-import 'profile_page.dart';
-import '../widgets/app_card.dart';
-import 'add_alarm_page.dart';
+
+import 'package:flutterlabslpnu/pages/add_alarm_page.dart';
+import 'package:flutterlabslpnu/pages/profile_page.dart';
+import 'package:flutterlabslpnu/pages/settings_page.dart';
+import 'package:flutterlabslpnu/widgets/app_card.dart';
 
 class AlarmPage extends StatefulWidget {
   const AlarmPage({super.key});

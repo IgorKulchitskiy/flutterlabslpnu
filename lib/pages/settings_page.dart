@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../widgets/app_button.dart';
-import 'change_pin_page.dart';
+
+import 'package:flutterlabslpnu/pages/change_pin_page.dart';
+import 'package:flutterlabslpnu/widgets/app_button.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});

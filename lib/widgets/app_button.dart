@@ -5,9 +5,9 @@ class AppButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const AppButton({
-    super.key,
     required this.text,
     required this.onTap,
+    super.key,
   });
 
   @override
@@ -15,7 +15,7 @@ class AppButton extends StatelessWidget {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: null,
+        onPressed: onTap,
         child: Text(text),
       ),
     );

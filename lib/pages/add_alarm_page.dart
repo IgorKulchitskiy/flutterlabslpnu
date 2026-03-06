@@ -8,7 +8,7 @@ class AddAlarmPage extends StatefulWidget {
 }
 
 class _AddAlarmPageState extends State<AddAlarmPage> {
-  final String correctPassword = "7218";
+  final String correctPassword = '1234';
 
   @override
   void initState() {
@@ -20,19 +20,19 @@ class _AddAlarmPageState extends State<AddAlarmPage> {
   }
 
   void _showPasswordDialog() {
-    TextEditingController passwordController = TextEditingController();
+    final TextEditingController passwordController = TextEditingController();
 
     showDialog<void>(
       context: context,
       barrierDismissible: false,
       builder: (context) {
         return AlertDialog(
-          title: const Text("Enter password"),
+          title: const Text('Enter password'),
           content: TextField(
             controller: passwordController,
             obscureText: true,
             decoration: const InputDecoration(
-              labelText: "Password",
+              labelText: 'Password',
             ),
           ),
           actions: [
@@ -46,12 +46,12 @@ class _AddAlarmPageState extends State<AddAlarmPage> {
 
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Wrong password"),
+                      content: Text('Wrong password'),
                     ),
                   );
                 }
               },
-              child: const Text("OK"),
+              child: const Text('OK'),
             ),
           ],
         );

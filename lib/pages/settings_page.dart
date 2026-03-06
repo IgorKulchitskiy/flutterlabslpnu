@@ -33,7 +33,7 @@ class SettingsPage extends StatelessWidget {
             const SizedBox(height: 16),
             ListTile(
               leading: const Icon(Icons.pin),
-              title: const Text('Change PIN'),
+              title: const Text('Change Password'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () {
                 Navigator.of(context).push(

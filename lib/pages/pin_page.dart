@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutterlabslpnu/models/user.dart';
 import 'package:flutterlabslpnu/pages/alarm_page.dart';
 import 'package:flutterlabslpnu/pages/register_page.dart';
+import 'package:flutterlabslpnu/services/network_service.dart';
 import 'package:flutterlabslpnu/storage/local_user_storage.dart';
 
 class PinPage extends StatefulWidget {
@@ -16,8 +17,20 @@ class _PinPageState extends State<PinPage> {
   final TextEditingController passwordController = TextEditingController();
 
   final storage = LocalUserStorage();
+  final networkService = NetworkService();
 
   Future<void> checkLogin() async {
+    final hasConnection = await networkService.hasConnection();
+
+    if (!mounted) return;
+
+    if (!hasConnection) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('⚠ Немає з’єднання з Інтернетом')),
+      );
+      return;
+    }
+
     final User? user = await storage.getUser();
 
     if (!mounted) return;
@@ -33,6 +46,10 @@ class _PinPageState extends State<PinPage> {
     final String password = passwordController.text.trim();
 
     if (login == user.username && password == user.password) {
+      await storage.setSessionActive(true);
+
+      if (!mounted) return;
+
       Navigator.of(context).pushReplacement(
         MaterialPageRoute<void>(
           builder: (_) => const AlarmPage(),

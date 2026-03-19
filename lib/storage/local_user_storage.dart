@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalUserStorage implements UserStorage {
   static const String _userKey = 'user';
   static const String _sessionKey = 'session_active';
+  static const String _sessionExpiresAtKey = 'session_expires_at_ms';
+  static const Duration _sessionDuration = Duration(minutes: 15);
 
   @override
   Future<void> saveUser(User user) async {
@@ -25,12 +27,36 @@ class LocalUserStorage implements UserStorage {
   @override
   Future<void> setSessionActive(bool isActive) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_sessionKey, isActive);
+
+    if (isActive) {
+      final expiresAt = DateTime.now()
+          .add(_sessionDuration)
+          .millisecondsSinceEpoch;
+      await prefs.setBool(_sessionKey, true);
+      await prefs.setInt(_sessionExpiresAtKey, expiresAt);
+      return;
+    }
+
+    await prefs.setBool(_sessionKey, false);
+    await prefs.remove(_sessionExpiresAtKey);
   }
 
   @override
   Future<bool> isSessionActive() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_sessionKey) ?? false;
+    final isActive = prefs.getBool(_sessionKey) ?? false;
+
+    if (!isActive) return false;
+
+    final expiresAt = prefs.getInt(_sessionExpiresAtKey);
+
+    if (expiresAt == null ||
+      DateTime.now().millisecondsSinceEpoch >= expiresAt) {
+      await prefs.setBool(_sessionKey, false);
+      await prefs.remove(_sessionExpiresAtKey);
+      return false;
+    }
+
+    return true;
   }
 }

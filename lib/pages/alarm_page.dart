@@ -24,7 +24,7 @@ class AlarmPage extends StatefulWidget {
   State<AlarmPage> createState() => _AlarmPageState();
 }
 
-class _AlarmPageState extends State<AlarmPage> {
+class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
   static const _channel = MethodChannel('alarm_sms');
   final LocalUserStorage _storage = LocalUserStorage();
   final NetworkService _networkService = NetworkService();
@@ -85,9 +85,31 @@ class _AlarmPageState extends State<AlarmPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     requestDefaultSms();
     loadAlarms();
     _startConnectionMonitoring();
+    _validateSessionOrLogout();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _validateSessionOrLogout();
+    }
+  }
+
+  Future<void> _validateSessionOrLogout() async {
+    final isSessionActive = await _storage.isSessionActive();
+
+    if (!mounted || isSessionActive) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const PinPage(),
+      ),
+      (route) => false,
+    );
   }
 
   Future<void> _startConnectionMonitoring() async {
@@ -383,6 +405,7 @@ class _AlarmPageState extends State<AlarmPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectionSubscription?.cancel();
     super.dispose();
   }

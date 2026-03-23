@@ -1,30 +1,150 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutterlabslpnu/models/alarm_config.dart';
 import 'package:flutterlabslpnu/models/sms_message.dart';
+import 'package:flutterlabslpnu/pages/mqtt_logs_page.dart';
+import 'package:flutterlabslpnu/pages/pin_page.dart';
 import 'package:flutterlabslpnu/pages/settings_page.dart';
 import 'package:flutterlabslpnu/pages/user_page.dart';
+import 'package:flutterlabslpnu/services/network_service.dart';
+import 'package:flutterlabslpnu/storage/local_user_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AlarmPage extends StatefulWidget {
-  const AlarmPage({super.key});
+  final bool showOfflineWarning;
+
+  const AlarmPage({
+    super.key,
+    this.showOfflineWarning = false,
+  });
 
   @override
   State<AlarmPage> createState() => _AlarmPageState();
 }
 
-class _AlarmPageState extends State<AlarmPage> {
+class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
   static const _channel = MethodChannel('alarm_sms');
+  final LocalUserStorage _storage = LocalUserStorage();
+  final NetworkService _networkService = NetworkService();
 
   List<AlarmConfig> alarms = [];
   List<SmsMessage> smsList = [];
   List<String> _alarmOrder = [];
+  StreamSubscription<bool>? _connectionSubscription;
+  bool _isOnline = true;
+
+  List<AlarmConfig> _defaultAlarms() {
+    return [
+      AlarmConfig(
+        title: 'Кабінет',
+        phone: '+380676739457',
+        arm: '721801',
+        disarm: '7218*10',
+      ),
+      AlarmConfig(
+        title: 'Гараж',
+        phone: '+380676739457',
+        arm: '721801',
+        disarm: '721800',
+      ),
+      AlarmConfig(
+        title: 'Село',
+        phone: '+380676739457',
+        arm: '721801',
+        disarm: '721800',
+      ),
+      AlarmConfig(
+        title: 'Квартира',
+        phone: '+380676739457',
+        arm: '721801',
+        disarm: '721800',
+      ),
+      AlarmConfig(
+        title: 'Бабуся Леся',
+        phone: '+380676739457',
+        arm: '721801',
+        disarm: '721800',
+      ),
+      AlarmConfig(
+        title: 'Кладовка кабінет',
+        phone: '+380676739457',
+        arm: '7218*29',
+        disarm: '7218*20',
+      ),
+    ];
+  }
+
+  List<String> _serializeAlarms(List<AlarmConfig> list) {
+    return list
+        .map((a) => '${a.title}|${a.phone}|${a.arm}|${a.disarm}')
+        .toList();
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     requestDefaultSms();
     loadAlarms();
+    _startConnectionMonitoring();
+    _validateSessionOrLogout();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _validateSessionOrLogout();
+    }
+  }
+
+  Future<void> _validateSessionOrLogout() async {
+    final isSessionActive = await _storage.isSessionActive();
+
+    if (!mounted || isSessionActive) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const PinPage(),
+      ),
+      (route) => false,
+    );
+  }
+
+  Future<void> _startConnectionMonitoring() async {
+    final hasConnection = await _networkService.hasConnection();
+
+    if (!mounted) return;
+
+    setState(() {
+      _isOnline = hasConnection;
+    });
+
+    if (widget.showOfflineWarning && !hasConnection) {
+      showMessage(
+        '⚠ Автовхід виконано без Інтернету. Частина функцій обмежена',
+      );
+    }
+
+    _connectionSubscription =
+        _networkService.onConnectionChanged().listen((isOnline) {
+      if (!mounted) return;
+
+      final wasOnline = _isOnline;
+
+      setState(() {
+        _isOnline = isOnline;
+      });
+
+      if (wasOnline && !isOnline) {
+        showMessage('⚠ Втрачено з’єднання з Інтернетом');
+      }
+
+      if (!wasOnline && isOnline) {
+        showMessage('✅ З’єднання з Інтернетом відновлено');
+      }
+    });
   }
 
   Future<void> loadAlarms() async {
@@ -32,52 +152,10 @@ class _AlarmPageState extends State<AlarmPage> {
 
     final alarmsJson = prefs.getStringList('alarms');
     final savedOrder = prefs.getStringList('alarmOrder') ?? [];
+    final defaultAlarms = _defaultAlarms();
 
     if (alarmsJson == null || alarmsJson.isEmpty) {
-      final defaultAlarms = [
-        AlarmConfig(
-          title: 'Кабінет',
-          phone: '+380676739457',
-          arm: '721801',
-          disarm: '7218*10',
-        ),
-        AlarmConfig(
-          title: 'Гараж',
-          phone: '+380676739457',
-          arm: '721801',
-          disarm: '721800',
-        ),
-        AlarmConfig(
-          title: 'Село',
-          phone: '+380676739457',
-          arm: '721801',
-          disarm: '721800',
-        ),
-        AlarmConfig(
-          title: 'Квартира',
-          phone: '+380676739457',
-          arm: '721801',
-          disarm: '721800',
-        ),
-        AlarmConfig(
-          title: 'Бабуся Леся',
-          phone: '+380676739457',
-          arm: '721801',
-          disarm: '721800',
-        ),
-        AlarmConfig(
-          title: 'Кладовка кабінет',
-          phone: '+380676739457',
-          arm: '7218*29',
-          disarm: '7218*20',
-        ),
-      ];
-
-      final json = defaultAlarms
-          .map((a) => '${a.title}|${a.phone}|${a.arm}|${a.disarm}')
-          .toList();
-
-      await prefs.setStringList('alarms', json);
+      await prefs.setStringList('alarms', _serializeAlarms(defaultAlarms));
     }
 
     final alarmsList = prefs.getStringList('alarms') ?? [];
@@ -92,6 +170,20 @@ class _AlarmPageState extends State<AlarmPage> {
         disarm: parts[3],
       );
     }).toList();
+
+    final existingTitles = loaded.map((a) => a.title).toSet();
+    bool updatedWithDefaults = false;
+
+    for (final defaultAlarm in defaultAlarms) {
+      if (!existingTitles.contains(defaultAlarm.title)) {
+        loaded.add(defaultAlarm);
+        updatedWithDefaults = true;
+      }
+    }
+
+    if (updatedWithDefaults) {
+      await prefs.setStringList('alarms', _serializeAlarms(loaded));
+    }
 
     if (savedOrder.isNotEmpty) {
       final Map<String, AlarmConfig> map = {
@@ -144,6 +236,11 @@ class _AlarmPageState extends State<AlarmPage> {
     required String message,
     required bool isArm,
   }) async {
+    if (!_isOnline) {
+      showMessage('⚠ Немає Інтернету. Надсилання тимчасово недоступне');
+      return;
+    }
+
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -273,12 +370,74 @@ class _AlarmPageState extends State<AlarmPage> {
     await loadAlarms();
   }
 
+  Future<void> _logout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Вихід із додатку'),
+        content: const Text('Ви дійсно хочете вийти?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Скасувати'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Вийти'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout != true) return;
+
+    await _storage.setSessionActive(false);
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const PinPage(),
+      ),
+      (route) => false,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _connectionSubscription?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Сигналізація + SMS'),
         actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _isOnline ? Icons.wifi : Icons.wifi_off,
+                  size: 18,
+                  color: _isOnline ? Colors.green : Colors.red,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _isOnline ? 'Online' : 'Offline',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOnline ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: () {
@@ -291,8 +450,23 @@ class _AlarmPageState extends State<AlarmPage> {
             },
           ),
           IconButton(
+            icon: const Icon(Icons.wifi_tethering),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute<void>(
+                  builder: (_) => const MqttLogsPage(),
+                ),
+              );
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.settings),
             onPressed: openSettings,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: _logout,
           ),
         ],
       ),

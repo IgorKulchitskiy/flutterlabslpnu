@@ -8,9 +8,9 @@ import 'package:flutterlabslpnu/pages/mqtt_logs_page.dart';
 import 'package:flutterlabslpnu/pages/pin_page.dart';
 import 'package:flutterlabslpnu/pages/settings_page.dart';
 import 'package:flutterlabslpnu/pages/user_page.dart';
+import 'package:flutterlabslpnu/services/api_service.dart';
 import 'package:flutterlabslpnu/services/network_service.dart';
 import 'package:flutterlabslpnu/storage/local_user_storage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class AlarmPage extends StatefulWidget {
   final bool showOfflineWarning;
@@ -28,59 +28,12 @@ class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
   static const _channel = MethodChannel('alarm_sms');
   final LocalUserStorage _storage = LocalUserStorage();
   final NetworkService _networkService = NetworkService();
+  final ApiService _apiService = ApiService();
 
   List<AlarmConfig> alarms = [];
   List<SmsMessage> smsList = [];
-  List<String> _alarmOrder = [];
   StreamSubscription<bool>? _connectionSubscription;
   bool _isOnline = true;
-
-  List<AlarmConfig> _defaultAlarms() {
-    return [
-      AlarmConfig(
-        title: 'Кабінет',
-        phone: '+380676739457',
-        arm: '721801',
-        disarm: '7218*10',
-      ),
-      AlarmConfig(
-        title: 'Гараж',
-        phone: '+380676739457',
-        arm: '721801',
-        disarm: '721800',
-      ),
-      AlarmConfig(
-        title: 'Село',
-        phone: '+380676739457',
-        arm: '721801',
-        disarm: '721800',
-      ),
-      AlarmConfig(
-        title: 'Квартира',
-        phone: '+380676739457',
-        arm: '721801',
-        disarm: '721800',
-      ),
-      AlarmConfig(
-        title: 'Бабуся Леся',
-        phone: '+380676739457',
-        arm: '721801',
-        disarm: '721800',
-      ),
-      AlarmConfig(
-        title: 'Кладовка кабінет',
-        phone: '+380676739457',
-        arm: '7218*29',
-        disarm: '7218*20',
-      ),
-    ];
-  }
-
-  List<String> _serializeAlarms(List<AlarmConfig> list) {
-    return list
-        .map((a) => '${a.title}|${a.phone}|${a.arm}|${a.disarm}')
-        .toList();
-  }
 
   @override
   void initState() {
@@ -148,70 +101,17 @@ class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
   }
 
   Future<void> loadAlarms() async {
-    final prefs = await SharedPreferences.getInstance();
+    try {
+      final loaded = await _apiService.getAlarms();
+      if (!mounted) return;
 
-    final alarmsJson = prefs.getStringList('alarms');
-    final savedOrder = prefs.getStringList('alarmOrder') ?? [];
-    final defaultAlarms = _defaultAlarms();
-
-    if (alarmsJson == null || alarmsJson.isEmpty) {
-      await prefs.setStringList('alarms', _serializeAlarms(defaultAlarms));
+      setState(() {
+        alarms = loaded;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      showMessage('❌ Помилка завантаження сигналізацій: $e');
     }
-
-    final alarmsList = prefs.getStringList('alarms') ?? [];
-
-    List<AlarmConfig> loaded = alarmsList.map((json) {
-      final parts = json.split('|');
-
-      return AlarmConfig(
-        title: parts[0],
-        phone: parts[1],
-        arm: parts[2],
-        disarm: parts[3],
-      );
-    }).toList();
-
-    final existingTitles = loaded.map((a) => a.title).toSet();
-    bool updatedWithDefaults = false;
-
-    for (final defaultAlarm in defaultAlarms) {
-      if (!existingTitles.contains(defaultAlarm.title)) {
-        loaded.add(defaultAlarm);
-        updatedWithDefaults = true;
-      }
-    }
-
-    if (updatedWithDefaults) {
-      await prefs.setStringList('alarms', _serializeAlarms(loaded));
-    }
-
-    if (savedOrder.isNotEmpty) {
-      final Map<String, AlarmConfig> map = {
-        for (var alarm in loaded) alarm.title: alarm,
-      };
-
-      final List<AlarmConfig> sorted = [];
-
-      for (String title in savedOrder) {
-        if (map.containsKey(title)) {
-          sorted.add(map[title]!);
-          map.remove(title);
-        }
-      }
-
-      sorted.addAll(map.values);
-      loaded = sorted;
-    }
-
-    setState(() {
-      alarms = loaded;
-      _alarmOrder = alarms.map((a) => a.title).toList();
-    });
-  }
-
-  Future<void> _saveAlarmOrder() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList('alarmOrder', _alarmOrder);
   }
 
   Future<void> requestDefaultSms() async {
@@ -276,7 +176,7 @@ class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
 
   Widget alarmBlock(AlarmConfig alarm, int index) {
     return Container(
-      key: ValueKey(alarm.title),
+      key: ValueKey(alarm.id),
       margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 10),
       child: Card(
         elevation: 3,
@@ -471,16 +371,21 @@ class _AlarmPageState extends State<AlarmPage> with WidgetsBindingObserver {
         ],
       ),
       body: ReorderableListView(
-        onReorder: (int oldIndex, int newIndex) {
+        onReorder: (int oldIndex, int newIndex) async {
           setState(() {
             if (newIndex > oldIndex) newIndex -= 1;
 
             final AlarmConfig item = alarms.removeAt(oldIndex);
             alarms.insert(newIndex, item);
-
-            _alarmOrder = alarms.map((a) => a.title).toList();
-            _saveAlarmOrder();
           });
+
+          try {
+            await _apiService.reorderAlarms(alarms.map((a) => a.id).toList());
+          } catch (e) {
+            if (!mounted) return;
+            showMessage('❌ Помилка оновлення порядку: $e');
+            await loadAlarms();
+          }
         },
         children: [
           for (int i = 0; i < alarms.length; i++) alarmBlock(alarms[i], i),

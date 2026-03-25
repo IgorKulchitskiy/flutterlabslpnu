@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:flutterlabslpnu/models/user.dart';
-import 'package:flutterlabslpnu/storage/local_user_storage.dart';
+import 'package:flutterlabslpnu/services/api_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -14,7 +13,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final TextEditingController loginController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  final storage = LocalUserStorage();
+  final ApiService authApi = ApiService();
 
   Future<void> registerUser() async {
     final String login = loginController.text.trim();
@@ -41,12 +40,20 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
 
-    final user = User(
-      username: login,
-      password: password,
-    );
+    try {
+      await authApi.register(username: login, password: password);
+    } catch (e) {
+      if (!mounted) return;
 
-    await storage.saveUser(user);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '❌ ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (!mounted) return;
 

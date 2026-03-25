@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutterlabslpnu/models/user.dart';
 import 'package:flutterlabslpnu/pages/alarm_page.dart';
 import 'package:flutterlabslpnu/pages/register_page.dart';
+import 'package:flutterlabslpnu/services/api_service.dart';
 import 'package:flutterlabslpnu/services/network_service.dart';
 import 'package:flutterlabslpnu/storage/local_user_storage.dart';
+import 'package:flutterlabslpnu/storage/user_storage.dart';
 
 class PinPage extends StatefulWidget {
   const PinPage({super.key});
@@ -16,8 +17,9 @@ class _PinPageState extends State<PinPage> {
   final TextEditingController loginController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
 
-  final storage = LocalUserStorage();
-  final networkService = NetworkService();
+  final UserStorage storage = LocalUserStorage();
+  final NetworkService networkService = NetworkService();
+  final ApiService authApi = ApiService();
 
   Future<void> checkLogin() async {
     final hasConnection = await networkService.hasConnection();
@@ -31,21 +33,23 @@ class _PinPageState extends State<PinPage> {
       return;
     }
 
-    final User? user = await storage.getUser();
+    final String login = loginController.text.trim();
+    final String password = passwordController.text.trim();
 
-    if (!mounted) return;
-
-    if (user == null) {
+    if (login.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Користувач не зареєстрований')),
+        const SnackBar(content: Text('❌ Заповніть всі поля')),
       );
       return;
     }
 
-    final String login = loginController.text.trim();
-    final String password = passwordController.text.trim();
-
-    if (login == user.username && password == user.password) {
+    try {
+      final loginResult = await authApi.login(
+        username: login,
+        password: password,
+      );
+      await storage.saveUser(loginResult.user);
+      await storage.saveAuthToken(loginResult.token);
       await storage.setSessionActive(true);
 
       if (!mounted) return;
@@ -55,9 +59,16 @@ class _PinPageState extends State<PinPage> {
           builder: (_) => const AlarmPage(),
         ),
       );
-    } else {
+
+      return;
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Невірний логін або пароль')),
+        SnackBar(
+          content: Text(
+            '❌ ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
       );
     }
   }

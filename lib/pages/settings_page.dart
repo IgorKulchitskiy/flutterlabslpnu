@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutterlabslpnu/models/alarm_config.dart';
 import 'package:flutterlabslpnu/models/user.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutterlabslpnu/services/api_service.dart';
+import 'package:flutterlabslpnu/storage/local_user_storage.dart';
+import 'package:flutterlabslpnu/storage/user_storage.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -20,6 +22,8 @@ class _SettingsPageState extends State<SettingsPage>
   final TextEditingController _disarmController = TextEditingController();
 
   String currentPassword = '';
+  final UserStorage _storage = LocalUserStorage();
+  final ApiService _authApi = ApiService();
 
   List<AlarmConfig> alarms = [];
 
@@ -30,23 +34,29 @@ class _SettingsPageState extends State<SettingsPage>
     super.initState();
 
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_handleTabChanged);
 
     _loadPassword();
     _loadAlarms();
   }
 
+  void _handleTabChanged() {
+    if (!_tabController.indexIsChanging && _tabController.index == 2) {
+      _loadAlarms();
+    }
+  }
+
   Future<void> _loadPassword() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user');
+    final user = await _storage.getUser();
+    if (user == null) return;
 
-    if (userData == null) return;
-
-    final user = User.fromStorage(userData);
+    final profile = await _authApi.getProfile(user.username);
+    final userToShow = profile ?? user;
 
     if (!mounted) return;
 
     setState(() {
-      currentPassword = user.password;
+      currentPassword = userToShow.password;
     });
   }
 
@@ -60,24 +70,34 @@ class _SettingsPageState extends State<SettingsPage>
       return;
     }
 
-    final prefs = await SharedPreferences.getInstance();
-    final userData = prefs.getString('user');
+    final user = await _storage.getUser();
+    if (user == null) return;
 
-    if (userData == null) return;
+    late final User updatedUser;
+    try {
+      updatedUser = await _authApi.updatePassword(
+        username: user.username,
+        newPassword: _passwordController.text,
+      );
+    } catch (e) {
+      if (!mounted) return;
 
-    final user = User.fromStorage(userData);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Помилка API: ${e.toString().replaceFirst('Exception: ', '')}',
+          ),
+        ),
+      );
+      return;
+    }
 
-    final updatedUser = User(
-      username: user.username,
-      password: _passwordController.text,
-    );
-
-    await prefs.setString('user', updatedUser.toStorage());
+    await _storage.saveUser(updatedUser);
 
     if (!mounted) return;
 
     setState(() {
-      currentPassword = _passwordController.text;
+      currentPassword = updatedUser.password;
       _passwordController.clear();
     });
 
@@ -87,30 +107,23 @@ class _SettingsPageState extends State<SettingsPage>
   }
 
   Future<void> _loadAlarms() async {
-    final prefs = await SharedPreferences.getInstance();
-    final alarmsJson = prefs.getStringList('alarms') ?? [];
+    final messenger = ScaffoldMessenger.of(context);
 
-    if (!mounted) return;
+    try {
+      final loaded = await _authApi.getAlarms();
 
-    setState(() {
-      alarms = alarmsJson.map((json) {
-        final parts = json.split('|');
-        return AlarmConfig(
-          title: parts[0],
-          phone: parts[1],
-          arm: parts[2],
-          disarm: parts[3],
-        );
-      }).toList();
-    });
-  }
+      if (!mounted) return;
 
-  Future<void> _saveAlarms() async {
-    final prefs = await SharedPreferences.getInstance();
-    final alarmsJson = alarms
-        .map((a) => '${a.title}|${a.phone}|${a.arm}|${a.disarm}')
-        .toList();
-    await prefs.setStringList('alarms', alarmsJson);
+      setState(() {
+        alarms = loaded;
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      messenger.showSnackBar(
+        SnackBar(content: Text('Помилка завантаження сигналізацій: $e')),
+      );
+    }
   }
 
   Future<void> _addAlarm() async {
@@ -127,18 +140,23 @@ class _SettingsPageState extends State<SettingsPage>
       return;
     }
 
-    final newAlarm = AlarmConfig(
-      title: name,
-      phone: phone,
-      arm: arm,
-      disarm: disarm,
-    );
+    try {
+      final createdAlarm = await _authApi.createAlarm(
+        title: name,
+        phone: phone,
+        arm: arm,
+        disarm: disarm,
+      );
 
-    setState(() {
-      alarms.add(newAlarm);
-    });
-
-    await _saveAlarms();
+      setState(() {
+        alarms.add(createdAlarm);
+      });
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Помилка додавання сигналізації: $e')),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
@@ -154,11 +172,20 @@ class _SettingsPageState extends State<SettingsPage>
 
   Future<void> _deleteAlarm(int index) async {
     final messenger = ScaffoldMessenger.of(context);
-    setState(() {
-      alarms.removeAt(index);
-    });
+    final alarmId = alarms[index].id;
 
-    await _saveAlarms();
+    try {
+      await _authApi.deleteAlarm(alarmId);
+
+      setState(() {
+        alarms.removeAt(index);
+      });
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Помилка видалення сигналізації: $e')),
+      );
+      return;
+    }
 
     if (!mounted) return;
 
@@ -202,17 +229,35 @@ class _SettingsPageState extends State<SettingsPage>
               final navigator = Navigator.of(this.context);
 
               final editedAlarm = AlarmConfig(
+                id: alarm.id,
                 title: nameController.text,
                 phone: phoneController.text,
                 arm: armController.text,
                 disarm: disarmController.text,
               );
 
-              setState(() {
-                alarms[index] = editedAlarm;
-              });
+              try {
+                final updated = await _authApi.updateAlarm(
+                  id: editedAlarm.id,
+                  title: editedAlarm.title,
+                  phone: editedAlarm.phone,
+                  arm: editedAlarm.arm,
+                  disarm: editedAlarm.disarm,
+                );
 
-              await _saveAlarms();
+                if (!mounted) return;
+
+                setState(() {
+                  alarms[index] = updated;
+                });
+              } catch (e) {
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text('Помилка редагування сигналізації: $e'),
+                  ),
+                );
+                return;
+              }
 
               // Тепер використовуємо збережені змінні замість context
               navigator.pop();
@@ -320,6 +365,7 @@ class _SettingsPageState extends State<SettingsPage>
 
   @override
   void dispose() {
+    _tabController.removeListener(_handleTabChanged);
     _tabController.dispose();
     _passwordController.dispose();
     _nameController.dispose();

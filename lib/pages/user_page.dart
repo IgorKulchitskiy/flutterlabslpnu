@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutterlabslpnu/models/user.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutterlabslpnu/services/api_service.dart';
+import 'package:flutterlabslpnu/storage/local_user_storage.dart';
+import 'package:flutterlabslpnu/storage/user_storage.dart';
 
 class UserPage extends StatefulWidget {
   const UserPage({super.key});
@@ -10,24 +12,15 @@ class UserPage extends StatefulWidget {
 }
 
 class _UserPageState extends State<UserPage> {
-  User? user;
+  final UserStorage _storage = LocalUserStorage();
+  final ApiService _authApi = ApiService();
 
-  @override
-  void initState() {
-    super.initState();
-    loadUser();
-  }
+  Future<User?> _loadUserFromApi() async {
+    final savedUser = await _storage.getUser();
+    if (savedUser == null) return null;
 
-  Future<void> loadUser() async {
-    final prefs = await SharedPreferences.getInstance();
-
-    final data = prefs.getString('user');
-
-    if (data != null) {
-      setState(() {
-        user = User.fromStorage(data);
-      });
-    }
+    final apiUser = await _authApi.getProfile(savedUser.username);
+    return apiUser ?? savedUser;
   }
 
   @override
@@ -36,25 +29,44 @@ class _UserPageState extends State<UserPage> {
       appBar: AppBar(
         title: const Text('User Profile'),
       ),
-      body: Center(
-        child: user == null
-            ? const Text('Немає користувача')
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.person, size: 80),
-                  const SizedBox(height: 20),
-                  Text(
-                    'Username: ${user!.username}',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Password: ${user!.password}',
-                    style: const TextStyle(fontSize: 20),
-                  ),
-                ],
-              ),
+      body: FutureBuilder<User?>(
+        future: _loadUserFromApi(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Text('Помилка завантаження: ${snapshot.error}'),
+            );
+          }
+
+          final user = snapshot.data;
+
+          if (user == null) {
+            return const Center(child: Text('Немає користувача'));
+          }
+
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.person, size: 80),
+                const SizedBox(height: 20),
+                Text(
+                  'Username: ${user.username}',
+                  style: const TextStyle(fontSize: 20),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Password: ${user.password}',
+                  style: const TextStyle(fontSize: 20),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_relative_lib_imports
+
 // This is a basic Flutter integration test.
 //
 // Since integration tests run in a full Flutter application, they can interact
@@ -9,7 +11,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
-import 'package:secret_torch_plugin/secret_torch_plugin.dart';
+import '../../lib/secret_torch_plugin.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

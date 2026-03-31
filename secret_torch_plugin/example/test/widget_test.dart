@@ -1,3 +1,5 @@
+// ignore_for_file: avoid_relative_lib_imports
+
 // This is a basic Flutter widget test.
 //
 // To perform an interaction with a widget in your test, use the WidgetTester
@@ -8,18 +10,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:secret_torch_plugin_example/main.dart';
+import '../lib/main.dart';
 
 void main() {
-  testWidgets('Verify Platform version', (WidgetTester tester) async {
+  testWidgets('Verify initial torch hint', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
-    // Verify that platform version is retrieved.
+    // Verify that initial hint text is shown.
     expect(
       find.byWidgetPredicate(
         (Widget widget) =>
-            widget is Text && widget.data!.startsWith('Running on:'),
+            widget is Text && widget.data == 'Press button to toggle torch',
       ),
       findsOneWidget,
     );

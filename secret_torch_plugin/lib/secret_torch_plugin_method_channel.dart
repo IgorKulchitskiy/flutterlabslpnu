@@ -14,4 +14,13 @@ class MethodChannelSecretTorchPlugin extends SecretTorchPluginPlatform {
     final isEnabled = await methodChannel.invokeMethod<bool>('toggleTorch');
     return isEnabled ?? false;
   }
+
+  @override
+  Future<bool> setLight(bool enabled) async {
+    final isEnabled = await methodChannel.invokeMethod<bool>(
+      'setTorch',
+      <String, bool>{'enabled': enabled},
+    );
+    return isEnabled ?? false;
+  }
 }

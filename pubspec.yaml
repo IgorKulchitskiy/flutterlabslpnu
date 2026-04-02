@@ -13,6 +13,7 @@ dependencies:
   flutter_bloc: ^8.1.6
   http: ^1.5.0
   mqtt_client: ^10.11.9
+  sensors_plus: ^7.0.0
   secret_torch_plugin:
     path: ./secret_torch_plugin
   shared_preferences: ^2.0.15

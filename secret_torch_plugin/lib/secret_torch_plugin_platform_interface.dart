@@ -26,4 +26,8 @@ abstract class SecretTorchPluginPlatform extends PlatformInterface {
   Future<bool> onLight() {
     throw UnimplementedError('onLight() has not been implemented.');
   }
+
+  Future<bool> setLight(bool enabled) {
+    throw UnimplementedError('setLight() has not been implemented.');
+  }
 }

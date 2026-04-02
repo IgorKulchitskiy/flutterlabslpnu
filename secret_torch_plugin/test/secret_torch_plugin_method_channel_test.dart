@@ -23,4 +23,8 @@ void main() {
   test('onLight', () async {
     expect(await platform.onLight(), true);
   });
+
+  test('setLight', () async {
+    expect(await platform.setLight(true), true);
+  });
 }

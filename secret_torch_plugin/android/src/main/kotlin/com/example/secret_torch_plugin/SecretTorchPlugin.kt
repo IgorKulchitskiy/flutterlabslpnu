@@ -32,6 +32,7 @@ class SecretTorchPlugin :
     ) {
         when (call.method) {
             "toggleTorch" -> toggleTorch(result)
+            "setTorch" -> setTorch(call.argument<Boolean>("enabled") == true, result)
             else -> result.notImplemented()
         }
     }
@@ -51,6 +52,27 @@ class SecretTorchPlugin :
             result.error("NO_PERMISSION", "Немає дозволу для керування ліхтариком", null)
         } catch (exception: Exception) {
             result.error("TOGGLE_FAILED", exception.localizedMessage, null)
+        }
+    }
+
+    private fun setTorch(
+        enabled: Boolean,
+        result: Result
+    ) {
+        val cameraId = cameraIdWithFlash
+        if (cameraId == null) {
+            result.error("UNAVAILABLE", "Ліхтарик недоступний на цьому пристрої", null)
+            return
+        }
+
+        try {
+            torchEnabled = enabled
+            cameraManager.setTorchMode(cameraId, enabled)
+            result.success(torchEnabled)
+        } catch (securityException: SecurityException) {
+            result.error("NO_PERMISSION", "Немає дозволу для керування ліхтариком", null)
+        } catch (exception: Exception) {
+            result.error("SET_FAILED", exception.localizedMessage, null)
         }
     }
 

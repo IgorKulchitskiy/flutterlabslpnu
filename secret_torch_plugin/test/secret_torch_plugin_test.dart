@@ -9,6 +9,9 @@ class MockSecretTorchPluginPlatform
     implements SecretTorchPluginPlatform {
   @override
   Future<bool> onLight() => Future.value(true);
+
+  @override
+  Future<bool> setLight(bool enabled) => Future.value(enabled);
 }
 
 void main() {
@@ -23,5 +26,13 @@ void main() {
     SecretTorchPluginPlatform.instance = fakePlatform;
 
     expect(await SecretTorchPlugin.onLight(), true);
+  });
+
+  test('setLight', () async {
+    MockSecretTorchPluginPlatform fakePlatform = MockSecretTorchPluginPlatform();
+    SecretTorchPluginPlatform.instance = fakePlatform;
+
+    expect(await SecretTorchPlugin.setLight(true), true);
+    expect(await SecretTorchPlugin.setLight(false), false);
   });
 }
